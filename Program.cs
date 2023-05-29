@@ -1,8 +1,7 @@
-using DemoApp.Handlers;
+using System.Text.Json;
 using DemoApp.Messages;
 using Rebus.Bus;
 using Rebus.Config;
-using Rebus.Handlers;
 using Rebus.Routing.TypeBased;
 using Serilog;
 
@@ -18,6 +17,10 @@ var configuration = new LoggerConfiguration().MinimumLevel
         "Microsoft.EntityFrameworkCore.Database.Command",
         Serilog.Events.LogEventLevel.Information
     )
+    .MinimumLevel.Override(
+        "Microsoft.EntityFrameworkCore.Infrastructure",
+        Serilog.Events.LogEventLevel.Information
+    )
     .WriteTo.Console()
     .Enrich.FromLogContext();
 var logger = configuration.CreateLogger();
@@ -29,8 +32,9 @@ builder.Services.AddLogging();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
+builder.Services.AddDbContext<DataContext>();
 builder.Services.AutoRegisterHandlersFromAssemblyOf<Program>();
+
 builder.Services.AddRebus(
     (configure) =>
     {
@@ -42,7 +46,7 @@ builder.Services.AddRebus(
     },
     onCreated: async bus =>
     {
-        await bus.Subscribe<TestMessage>();
+        await bus.Subscribe<Outbox>();
     }
 );
 
@@ -53,13 +57,43 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 app.UseSerilogRequestLogging();
 
+// Get data context from app
+// using the local scope
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<DataContext>();
+    // Delete and create database
+    context.Database.EnsureDeleted();
+    context.Database.EnsureCreated();
+}
+
 app.MapGet(
     "/",
-    (ILogger<TestMessage> logger, IBus bus) =>
+    (ILogger<Program> logger, IBus bus, DataContext context) =>
     {
         logger.LogInformation("Sending message");
-        bus.Publish(new TestMessage("Hello from Rebus!"));
-        logger.LogInformation("Message sent");
+        // Push message
+        var myContent = new MyContent { Name = "Test", Value = "Test" };
+        var outbox = new Outbox
+        {
+            Category = "MyContentCreated",
+            Type = "MyContent",
+            Content = JsonSerializer.Serialize(myContent)
+        };
+        var origOutboxId = outbox.Id;
+        context.Outbox.Add(outbox);
+        context.SaveChanges();
+
+        // Fetch message
+        var fetchedOutbox = context.Outbox.Find(origOutboxId);
+        if (fetchedOutbox == null)
+        {
+            logger.LogError("Outbox with {id} not found", origOutboxId);
+            return;
+        }
+
+        bus.Publish(fetchedOutbox);
+        logger.LogInformation("Message {id} sent", fetchedOutbox.Id);
     }
 );
 

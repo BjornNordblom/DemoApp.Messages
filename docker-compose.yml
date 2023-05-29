@@ -1,0 +1,39 @@
+version: '3.4'
+
+services:
+  demoapp.api:
+    image: demoapp-messages-image
+    container_name: demoapp-messages-api
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5111
+    ports:
+      - "5111:5111"
+    depends_on:
+      - demoapp.db
+      - demoapp.mq
+
+  demoapp.db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: demoapp-messages-db
+    hostname: demoapp-messages-db
+    environment:
+      - MSSQL_SA_PASSWORD=
+      - ACCEPT_EULA=Y
+    shm_size: 1g 
+    ports:
+      - 1433:1433
+
+  demoapp.mq:
+    image: docker.io/library/rabbitmq:3-management
+    container_name: demoapp-messages-mq
+    hostname: demoapp-messages-mq
+    ports:
+      - 5672:5672
+      - 15672:15672
+    environment:
+        RABBITMQ_DEFAULT_USER: guest
+        RABBITMQ_DEFAULT_PASS: guest
