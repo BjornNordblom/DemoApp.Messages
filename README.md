@@ -83,10 +83,16 @@ podman pull -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=th1s,1s,s3cr3t" -e 'TZ=UTC'
 podman exec --interactive --user root demoapp-db /opt/mssql/bin/mssql-conf set network.ipaddress 0.0.0.0
 ```
 
-Well, didn't work. Still can only connect to ::1.
+Well, didn't work. Still can only connect to ::1. Hyper-V issue?
+> Note: Running Hyper-V Manager as Administrator, and then in Virtual Switch Manager edit the WSL switch and connect it to "External Network" and an ethernet adapter on the host, gets you ipv4 and ipv6 connectivity if that exists on the host network.
 
+Next thing to try based on this [github issue](https://github.com/microsoft/WSL/issues/4851)
 ```
+netsh interface portproxy add v4tov4 listenport=1533 listenaddress=0.0.0.0 connectport=1433 connectaddress=<WSL IP>
 
+or
+
+netsh interface portproxy add v4tov6 listenaddress=127.0.0.1 listenport=3010 connectaddress=::1 connectport=3010
 ```
 
 podman network create demoapp-network
