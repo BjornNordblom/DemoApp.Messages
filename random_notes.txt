@@ -1,0 +1,30 @@
+podman network create demoapp-net
+podman run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=th1s1ss3cr3t...fortesting0nly" -e 'TZ=UTC' -p 1433:1433 --name demoapp-db --hostname demoapp-db -d mcr.microsoft.com/mssql/server:2019-latest
+
+podman run --rm --network demoapp-net --name docker-nginx -p 80:80 nginx
+
+podman run --rm -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=th1s,1s,s3cr3t" -p 1433:1433 --name demoapp-db --hostname demoapp-db -d mcr.microsoft.com/mssql/server:2022-latest
+
+podman run --rm -p 15672:15672 -p 5672:5672 -d rabbitmq:3-management
+
+podman exec -it demoapp-db /opt/mssql-tools/bin/sqlcmd -U 'sa' -P 'th1s,1s,s3cr3t' -S localhost
+
+podman exec -it demoapp-db sudo MSSQL_IP_ADDRESS=0.0.0.0 /opt/mssql/bin/mssql-conf setup
+
+podman exec -it demoapp-db export MSSQL_IP_ADDRESS=0.0.0.0
+
+cat <<EOF | podman exec --interactive demoapp-db sh
+MSSQL_IP_ADDRESS=0.0.0.0
+sudo /opt/mssql/bin/mssql-conf setup
+EOF
+
+cat <<EOF | podman exec --interactive --user root --tty demoapp-db
+podman exec --interactive --user root --tty demoapp-db /opt/mssql/bin/mssql-conf set network.ipaddress 0.0.0.0
+systemctl restart mssql-server.service
+EOF
+
+podman exec --interactive --user root demoapp-db /opt/mssql/bin/mssql-conf set network.ipaddress 0.0.0.0
+
+podman exec --interactive --tty demoapp-db ls /var/opt/mssql
+
+podman exec --interactive --tty demoapp-db ls /var/opt/mssql

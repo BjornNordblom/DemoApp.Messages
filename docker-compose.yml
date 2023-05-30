@@ -1,4 +1,4 @@
-version: '3.4'
+version: "3.4"
 
 services:
   demoapp.api:
@@ -21,9 +21,9 @@ services:
     container_name: demoapp-messages-db
     hostname: demoapp-messages-db
     environment:
-      - MSSQL_SA_PASSWORD=
+      - MSSQL_SA_PASSWORD=th1s1ss3cr3t...fortesting0nly
       - ACCEPT_EULA=Y
-    shm_size: 1g 
+    shm_size: 1g
     ports:
       - 1433:1433
 
@@ -35,5 +35,5 @@ services:
       - 5672:5672
       - 15672:15672
     environment:
-        RABBITMQ_DEFAULT_USER: guest
-        RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest

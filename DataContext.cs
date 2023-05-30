@@ -22,7 +22,7 @@ public class DataContext : DbContext
             .EnableSensitiveDataLogging()
             .UseSqlServer(
                 //@"Server=localhost;Database=Hypernova;User Id=sa;Password=s3c-r3t!P@ssw0rd;Trusted_Connection=True;MultipleActiveResultSets=True;TrustServerCertificate=True;"
-                @"Server=localhost;Database=Hypernova;User Id=sa;Password=s3c-r3t!P@ssw0rd;Trusted_Connection=False;MultipleActiveResultSets=True;TrustServerCertificate=True;"
+                @"Server=::1;Database=Hypernova;User Id=sa;Password=th1s,1s,s3cr3t;Trusted_Connection=False;MultipleActiveResultSets=True;TrustServerCertificate=True;"
             )
             .Options;
     }

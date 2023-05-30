@@ -3,7 +3,40 @@
 [MS Doc starting docker](https://learn.microsoft.com/en-us/dotnet/core/docker/build-container)
 [podman Debian](https://gist.github.com/matinrco/5515e213f6aaadae47dc4af003805385)
 
+# Final conclusion
+
+Use fedoraremix or Debian 11. Running the requirements separetly.
+
+`podman network create demoapp-net`
+
+`podman run --rm -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=th1s,1s,s3cr3t" -p 1433:1433 --network demoapp-net --name demoapp-db --hostname demoapp-db -d mcr.microsoft.com/mssql/server:2022-latest`
+
+`podman run --rm -p 15672:15672 -p 5672:5672 --network demoapp-net -d rabbitmq:3-management`
+
+`podman run --rm -p 6379:6379 --network demoapp-net --name demoapp-rds --hostname demoapp-rds -d redis --requirepass SuperSecret`
+
+`podman inspect demoapp-rds -f "{{json .NetworkSettings.Networks}}"`
+
+Not working. `setUpConnection (R:10.89.0.7:6379:0) Redis error ReplyError: NOAUTH Authentication required.`
+`podman run --rm --name demoapp-rds-commander -p 8081:8081 --network demoapp-net --env REDIS_HOSTS=local:10.89.0.7:6379 --env REDIS_PASSWORD=SuperSecret rediscommander/redis-commander:latest`
+
+Access using http://[::1]:8081
+
+## Wsl Ubuntu
+
+```
+. /etc/os-release
+echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/unstable/xUbuntu_${VERSION_ID}/ /" | sudo tee /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list
+curl -L "https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/unstable/xUbuntu_${VERSION_ID}/Release.key" | sudo apt-key add -
+sudo apt update
+sudo apt -y install podman
+```
+
+Problem: failed to move the rootless netns slirp4netns
+Dependant on systemd?
+
 ## Wsl Debian 11
+
 ```
 sudo apt update && sudo apt install wget lsb-release -y
 
@@ -11,6 +44,7 @@ source  /etc/os-release
 
 sudo apt install gpg curl openssl -y
 sudo apt update && sudo apt full-upgrade -y
+sudo apt update
 
 # https://software.opensuse.org/download/package?package=podman&project=devel%3Akubic%3Alibcontainers%3Astable
 echo 'deb http://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/Debian_Unstable/ /' | sudo tee /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list
@@ -23,18 +57,50 @@ sudo update-alternatives --set iptables /usr/sbin/iptables-legacy
 
 ```
 
+2023-05-29. Suse links to 404. New approach.
+
+[Microsoft unofficial list of distributions](https://learn.microsoft.com/en-us/windows/wsl/install-manual#downloading-distributions)
+Found [Fedora Remix for WSL](https://github.com/WhitewaterFoundry/Fedora-Remix-for-WSL/releases).
+
+Because 'cannot set up namespace using "/usr/bin/newuidmap"':
+
 ```
+sudo chmod 4755 /usr/bin/newgidmap
+sudo chmod 4755 /usr/bin/newuidmap
+```
+
+```
+podman run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=th1s,1s,s3cr3t" -p 8080:1433 --name demoapp-db --hostname demoapp-db -d mcr.microsoft.com/mssql/server:2019-latest
+```
+
+Maybe worked but could not connect from host. Same problem with Debian Wsl.
+
+Solution:
+
+```
+podman pull -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=th1s,1s,s3cr3t" -e 'TZ=UTC' -p 1433:1433 --name demoapp2-db --hostname demoapp-db -d mcr.microsoft.com/mssql/server:2022-latest
+
+podman exec --interactive --user root demoapp-db /opt/mssql/bin/mssql-conf set network.ipaddress 0.0.0.0
+```
+
+Well, didn't work. Still can only connect to ::1.
+
+```
+
+```
+
 podman network create demoapp-network
 
-mkdir -p .containers/queue/data .containers/queue/log
+podman run -d --rm --name demoapp-messages-mq --network demoapp-network -p 5672:5672 -p 15672:15672 -e 'RABBITMQ_DEFAULT_USER=guest' -e 'RABBITMQ_DEFAULT_PASSWORD=guest' docker.io/library/rabbitmq:3-management
 
-podman run -d --rm --name demoapp-messages-mq --network demoapp-network -p 5672:5672 -p 15672:15672  -e 'RABBITMQ_DEFAULT_USER=guest' -e 'RABBITMQ_DEFAULT_PASSWORD=guest' docker.io/library/rabbitmq:3-management
 ```
 
 ##
 ```
-sudo apt update && sudo apt -y full-upgrade 
-sudo apt install python3-pip podman 
+
+sudo apt update && sudo apt -y full-upgrade
+sudo apt install python3-pip podman
+
 ```
 
 ## Host
@@ -43,27 +109,35 @@ sudo apt install python3-pip podman
 ## Wsl
 ### Prerequisites
 ```
+
 sudo apt update && sudo apt upgrade
 sudo apt install openssl ca-certificates curl -y
 sudo apt install podman -y
+
 ```
 
 #### `sudo -e /etc/containers/containers.conf`
-Add 
+Add
 ```
+
 [containers]
 pids_limit = 4096
 [engine]
 events_logger = "file"
+
 ```
 
 ### `sudo -e /etc/containers/registries.conf.d/shortnames.conf`
 Add
 ```
+
 [aliases]
-  # nginx
-  "nginx" = "docker.io/library/nginx"
-```
+
+# nginx
+
+"nginx" = "docker.io/library/nginx"
+
+````
 
 `podman run --name nginx -p 8080:80 -d nginx:alpine`
 `podman ps -a`
@@ -81,7 +155,7 @@ Possibly also `podman rmi nginx`.
 Check localhost:8080 from host system using browser.
 
 ## Wsl
- 
+
 ### `podman build -t demoapp-messages-image -f Dockerfile`
 
 Output:
@@ -153,9 +227,10 @@ STEP 17: ENTRYPOINT ["dotnet", "DemoApp.Messages.API.dll"]
 STEP 18: COMMIT demoapp-messages-image
 --> 556beb1013f
 556beb1013f70a0ab932370220706df9fdf99a415712b7954489e65fd94fa9a3
-```
+````
 
 Verify it was created:
+
 ```sh
 $ podman images
 REPOSITORY                        TAG     IMAGE ID      CREATED             SIZE
@@ -163,9 +238,11 @@ localhost/demoapp-messages-image  latest  556beb1013f7  About a minute ago  200 
 ```
 
 ## Create the container
+
 `podman create --name demoapp-messages-container demoapp-messages-image`
 
 Verify it was created:
+
 ```sh
 $ podman ps -a
 CONTAINER ID  IMAGE                                    COMMAND  CREATED        STATUS   PORTS   NAMES
@@ -193,6 +270,7 @@ Since debian is using an older version of podman (unless added the Suse repo or 
 If `  WARNING: The script dotenv is installed in '/home/username/.local/bin' which is not on PATH.`:
 
 Edit ~/.bashrc:
+
 ```
 export PATH=$PATH:$HOME/.local/bin
 ```
